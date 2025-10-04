@@ -1,0 +1,49 @@
+# Task ID: 8
+# Title: Implement Optional Officer Push Notification Trigger
+# Status: in-progress
+# Dependencies: 2
+# Priority: low
+# Description: Add a button in the Admin app to manually send a push notification to an assigned officer's device via the Expo Push API.
+# Details:
+In the Admin UI, add a 'Notify Officer' button for assigned reports. On click, the app will read the officer's `pushToken` from the `officers/{uid}` document and make a client-side API call to the Expo Push service. If the token is missing, display guidance for the officer.
+
+# Test Strategy:
+Assign a report to an officer whose device is registered for push notifications. As the admin, click the 'Notify Officer' button. Confirm the notification is received on the officer's device within a few seconds.
+
+# Subtasks:
+## 1. Capture and Store Officer Expo Push Token [pending]
+### Dependencies: None
+### Description: In the police app, register for push notifications using Expo Notifications, request permissions, and save the Expo push token to the officer's user document (e.g., `users/{uid}.expoPushToken`). Ensure idempotent updates and remove stale tokens on logout.
+### Details:
+
+
+## 2. Authorize Token Writes in Firestore Rules [pending]
+### Dependencies: None
+### Description: Update Firestore security rules to allow authenticated officers to write their own `expoPushToken` under their user document while preventing writes to other users. Add validation for token format (starts with 'ExponentPushToken[').
+### Details:
+
+
+## 3. Admin Service: Fetch Officer Push Token [pending]
+### Dependencies: None
+### Description: In the admin app, add a service function to fetch the assigned officer's `expoPushToken` from Firestore given a report. Include fallback when missing.
+### Details:
+
+
+## 4. Admin Service: Send Push via Expo API [pending]
+### Dependencies: None
+### Description: Implement `sendPushNotification` in the admin app using Expo Push REST API. Handle batching, 429 retries with backoff, and error responses. Avoid Cloud Functions per Free Tier; call Expo directly from client.
+### Details:
+
+
+## 5. Admin UI: Notify Officer Button + Modal [pending]
+### Dependencies: None
+### Description: Add a 'Notify Officer' UI action (button) on the report row or detail panel. Open a modal to review message (pre-filled with report ID and priority), confirm, then trigger send with loading and toast feedback.
+### Details:
+
+
+## 6. Manual Test Plan and Edge Cases [pending]
+### Dependencies: None
+### Description: Write a short manual test plan to verify token capture, admin fetch, push send, and device receipt; include edge cases: missing token, invalid token, unassigned report, Expo service error.
+### Details:
+
+

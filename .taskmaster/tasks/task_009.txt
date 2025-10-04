@@ -1,0 +1,129 @@
+# Task ID: 9
+# Title: E2E Test: Core Report Lifecycle (Citizen to Officer)
+# Status: done
+# Dependencies: 2, 3, 4, 5
+# Priority: high
+# Description: Perform end-to-end testing of the primary report submission, assignment, and initial handling flow across all three applications.
+# Details:
+Execute the core user journey: 1. A citizen submits a report. 2. An admin views and manually assigns the report. 3. The assigned officer receives, accepts, and begins responding to the report, including adding evidence and notes.
+
+# Test Strategy:
+Follow the detailed E2E test plan in PRD section 10. Verify data consistency in Firestore and correct UI updates in the Citizen, Admin, and Police apps at each stage of the lifecycle.
+
+# Subtasks:
+## 1. Citizen App: Submit a New Report [done]
+### Dependencies: None
+### Description: As a citizen user, log in to the citizen app (@newlogin) and submit a new report with a detailed description, location, and incident type. This report will be the subject for the manual assignment flow.
+### Details:
+Log in to the citizen app. Navigate to the 'New Report' screen. Fill in all fields, making a note of a unique phrase in the description for easy identification (e.g., 'E2E Test - Manual Flow - [Timestamp]'). Submit the report.
+
+## 2. Admin App: View New Report and Set Priority [done]
+### Dependencies: 9.1
+### Description: As an admin user, log in to the admin app (@admin), find the newly submitted report in the unassigned queue, and update its priority from the default to 'High'.
+### Details:
+Log in to the admin app. Go to the 'Reports' or 'Unassigned' queue. Identify the report from the previous subtask. Use the UI controls to change its priority to 'High'.
+
+## 3. Admin App: Manually Assign Report to an Officer [done]
+### Dependencies: 9.2
+### Description: As an admin, manually assign the high-priority report to a specific, known officer from the list of available officers.
+### Details:
+From the report's detail view or list item in the admin app, use the 'Assign Officer' feature. Select a specific officer from the dropdown menu and confirm the assignment.
+
+## 4. Police App: Officer Accepts Assigned Report [done]
+### Dependencies: 9.3
+### Description: As the assigned officer, log in to the police app (@police), find the new report in the inbox/pending assignments, and formally accept it.
+### Details:
+Log in to the police app using the credentials of the officer to whom the report was assigned. The report should appear in a 'New Assignments' or 'Inbox' section. Click the 'Accept' button.
+
+## 5. Police App: Officer Changes Status to 'Responding' [done]
+### Dependencies: 9.4
+### Description: As the assigned officer, open the accepted report from the active case list and change its status to 'Responding' to indicate that work has begun.
+### Details:
+In the police app, navigate to the active case list, open the report's detail view, and use the status update control to change the status from 'Accepted' to 'Responding'.
+
+## 6. Police App: Officer Adds an Initial Note [done]
+### Dependencies: 9.5
+### Description: As the responding officer, add a text note to the report's activity log, such as 'Initial contact attempted with reporting party. Left voicemail.'
+### Details:
+Within the report's detail view in the police app, find the 'Notes' or 'Activity' section and use the feature to add a new note.
+<info added on 2025-09-16T15:04:21.505Z>
+### Execution Plan
+
+1.  **UI Implementation (`police/src/screens/ReportDetailScreen.tsx`)**
+    *   Locate the "Activity" or "Notes" section within the `ReportDetailScreen.tsx` component.
+    *   Add a new state variable for the note input, e.g., `const [note, setNote] = useState('');`.
+    *   Implement a simple form with a `TextInput` component for the note content and a `Button` to submit.
+    *   The `onPress` handler for the button will trigger the Firestore write logic, passing the `report.id`, the `note` text, and the current officer's UID. Disable the button while the write is in progress.
+
+2.  **Firestore Service Logic (`police/src/services/reportService.ts`)**
+    *   Following the pattern in `newlogin/services/reportService.ts`, create a new async function: `addNoteToReport(reportId: string, noteText: string, officerUid: string)`.
+    *   **Crucially, use a Firestore `writeBatch` to ensure the note and its corresponding audit log entry are created atomically.** This is required to maintain data integrity without server-side functions.
+    *   **Batch Write Step 1 (Comment):**
+        *   Get a reference to a new document in the subcollection: `const commentRef = doc(db, 'reports', reportId, 'comments', newDocId);`
+        *   Define the comment data: `{ text: noteText, createdBy: officerUid, createdAt: serverTimestamp() }`.
+        *   Add the set operation to the batch: `batch.set(commentRef, commentData);`
+    *   **Batch Write Step 2 (Audit Log):**
+        *   Get a reference to a new document in the top-level collection: `const auditRef = doc(db, 'audit_logs', newDocId);`
+        *   Define the **PII-safe** audit data: `{ action: 'note_added', actor: { uid: officerUid, role: 'officer' }, reportId: reportId, timestamp: serverTimestamp(), payload: { commentLength: noteText.length } }`. **Do not include `noteText` in the payload.**
+        *   Add the set operation to the batch: `batch.set(auditRef, auditData);`
+    *   **Commit Batch:** Execute `await batch.commit();`.
+
+3.  **Security Rules Verification (`firestore.rules`)**
+    *   Before implementation, review `firestore.rules` to confirm the following permissions exist:
+        *   An authenticated officer (`request.auth.uid == get(/databases/$(database)/documents/reports/$(reportId)).data.assignedTo`) can `create` documents in the `reports/{reportId}/comments` subcollection.
+        *   An authenticated user (officer) can `create` documents in the `audit_logs` collection.
+        *   The rule for `audit_logs` must validate that `request.resource.data.payload` does **not** contain a `text` or `comment` field to enforce PII safety at the database level.
+</info added on 2025-09-16T15:04:21.505Z>
+<info added on 2025-09-16T15:19:03.525Z>
+<info added on 2025-09-16T15:16:00.000Z>
+### Implementation Update: Cross-Platform Note Input Modal
+
+An implementation has been added, prioritizing a custom modal for Android while retaining the native `Alert.prompt` for iOS. This deviates from the initial plan of a simple inline form.
+
+**Architectural Change:**
+- Instead of the planned `comments` subcollection, notes are now stored in an `officerNotes` array field directly on the main report document. This required an update to the Firestore security rules.
+
+**Code-level Changes:**
+- **`police/src/screens/ReportDetailScreen.tsx`**:
+    - New state variables `showNoteModal` and `noteText` were introduced to manage a new `<Modal>` component.
+    - The `handleAddTextNote` function now contains platform-specific logic: it opens the custom modal on Android and uses `Alert.prompt` on iOS.
+    - A `handleSubmitNote` helper was created to call `firestoreService.addOfficerNote`, close the modal, and refresh the report data.
+- **`firestore.rules`**:
+    - Rules were successfully updated and deployed to permit officers to append to the `officerNotes` array and update `updatedAt` on their assigned reports.
+    - The rule to block raw note text in `audit_logs.details` (storing only `details.length`) was also confirmed and deployed.
+
+**Next Steps:**
+- Manually test the "Add Note" flow on an Android device.
+- Verify in Firestore that the `officerNotes` array is updated and the corresponding `audit_logs` document contains only the note's length.
+</info>
+</info added on 2025-09-16T15:19:03.525Z>
+
+## 7. Admin App: Verify Report's Full Audit Trail [done]
+### Dependencies: 9.6
+### Description: As an admin, return to the admin app, find the report, and review its history/audit log to ensure all previous actions (submission, priority change, assignment, acceptance, status change, note) are correctly recorded.
+### Details:
+In the admin app, locate the report (it may be in an 'All Reports' or 'In Progress' view). Open its detail view and inspect the 'History' or 'Audit Log' tab.
+<info added on 2025-09-16T15:29:57.612Z>
+### Implementation Notes
+
+- **Target Component:** The audit trail is likely rendered within a detail panel or modal that opens from the main report list in `admin/src/pages/Reports.tsx`. Look for a component that fetches and displays a report's history.
+- **Data Sources:** The history/timeline component will query the `audit_logs` collection, filtering by the `reportId` of the report being viewed. It should order the results by timestamp.
+- **Note Verification:** Pay close attention to how officer notes are displayed. The audit timeline itself should render a generic entry like "Officer added a note" based on the `audit_logs` document. The actual content of the note must be rendered from the `officerNotes` array within the main `reports` document. This separation is critical for PII safety, as the `audit_logs` entry for a note should only contain metadata (e.g., `{ details: { noteLength: 150 } }`) and not the raw text.
+- **Client-Side Logging:** Remember that all audit log entries are created by the client apps (Citizen, Admin, Police) at the time of the action, as per the architecture established in Task 1. For example:
+    - The "priority change" and "manual assignment" logs were created by the Admin app, likely within the logic in `admin/src/pages/Reports.tsx`.
+    - The "note added" log was created by the Police app.
+- If any log entry is missing, the issue lies within the client-side code responsible for that action, or a `firestore.rules` misconfiguration preventing the write to the `audit_logs` collection.
+</info added on 2025-09-16T15:29:57.612Z>
+
+## 8. Citizen App: Submit Second Report for Auto-Assign Test [done]
+### Dependencies: None
+### Description: To prepare for the auto-assign smoke test, log in to the citizen app (@newlogin) and submit a second, separate report.
+### Details:
+This process is identical to subtask 9.1. Use a unique description for easy identification, such as 'E2E Test - Auto-Assign Smoke'.
+
+## 9. Admin App: Smoke Test Auto-Assign Feature [done]
+### Dependencies: 9.8
+### Description: As an admin, locate the second report and use the 'Auto-Assign' feature. Verify that the report is successfully assigned to an available officer without manual selection.
+### Details:
+In the admin app, find the report from subtask 9.8 in the 'Unassigned' queue. Click the 'Auto-Assign' button. This is a smoke test to confirm the end-to-end functionality, not to validate the specific load-balancing logic.
+

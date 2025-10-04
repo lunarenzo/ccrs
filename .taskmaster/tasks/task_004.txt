@@ -1,0 +1,48 @@
+# Task ID: 4
+# Title: Update Police App for Data Model Backward Compatibility
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Ensure the police app can correctly display both old and new report data formats without crashing or showing incorrect information.
+# Details:
+In `police/screens/ReportDetailScreen.tsx` and related components, add logic to gracefully handle both `location.coordinates` (new) and `location.latitude/longitude` (old). Similarly, the UI should prefer `timestamp` but fall back to `createdAt` if it's absent to support older records.
+
+# Test Strategy:
+In the Police app, view a report created before this change and one created after. Confirm that the map and timestamps render correctly for both reports.
+
+# Subtasks:
+## 1. Update Report Type Definition for Backward Compatibility [done]
+### Dependencies: None
+### Description: Modify the `Report` interface in `police/types.ts` to accommodate both old and new data schemas. This includes making legacy fields optional and adding new ones.
+### Details:
+In `police/types.ts`, update the `Report` interface. Add an optional `timestamp` field. Add an optional nested `coordinates` object to the `location` property. Make the legacy `latitude` and `longitude` fields on `location` optional. Add `'pending'` to the `status` union type. Add an optional `user_id` field for fallback from `citizenId`.
+
+## 2. Create a `normalizeReport` Data Transformation Function [done]
+### Dependencies: 4.1
+### Description: In `police/services/firestoreService.ts`, create a new function `normalizeReport` that takes raw Firestore document data and transforms it into the consistent, backward-compatible `Report` type.
+### Details:
+Implement `normalizeReport(id: string, data: any): Report`. This function should handle the following transformations:
+- `location.coordinates`: Populate from `data.location.coordinates` if present, otherwise from `data.location.latitude` and `data.location.longitude`.
+- `location.address`: Use `data.location.address` if it's a string; otherwise, compose a string from the legacy address object (e.g., `data.location.address.street`).
+- `createdAt`: Set to `data.timestamp || data.createdAt`.
+- `updatedAt`: Set to `data.updatedAt || data.timestamp || data.createdAt`.
+- `citizenId`: Set to `data.citizenId || data.user_id`.
+
+## 3. Integrate `normalizeReport` into Firestore Service Functions [done]
+### Dependencies: 4.2
+### Description: Modify the existing data fetching functions in `police/services/firestoreService.ts` to use the new `normalizeReport` function, ensuring all report data is standardized upon retrieval.
+### Details:
+In `police/services/firestoreService.ts`, refactor `getReport`, `getAssignedReports`, and `subscribeToAssignedReports`. In each function, instead of directly casting the Firestore document data to the `Report` type, pass the document ID and data to `normalizeReport` and return its result. For example, `return normalizeReport(docSnap.id, docSnap.data());`.
+
+## 4. Update UI Components to Use Normalized Report Data [done]
+### Dependencies: 4.3
+### Description: Refactor `ReportDetailScreen.tsx` and `LeafletMap.tsx` to correctly display data from the normalized `Report` object, particularly for location and timestamps.
+### Details:
+In `police/components/LeafletMap.tsx`, update its props to accept a `coordinates` object (`{ latitude: number, longitude: number }`) instead of separate `latitude` and `longitude` props. Add a null check for `coordinates` before rendering. In `police/screens/ReportDetailScreen.tsx`, update the `LeafletMap` invocation to pass `report.location.coordinates`. Ensure the timestamp is displayed using the normalized `report.createdAt` field.
+
+## 5. Update Analytics Service and Finalize Testing [done]
+### Dependencies: 4.4
+### Description: Update any analytics logic to prefer the new `timestamp` field and perform a full manual test of the backward compatibility feature.
+### Details:
+Locate the analytics service (e.g., `police/services/analyticsService.ts`) and any logic that performs trend analysis based on `createdAt`. Modify this logic to prioritize the raw `timestamp` field when available, falling back to `createdAt`. For testing, create one legacy report in Firestore (with `latitude`/`longitude` and `createdAt`) and one new report via the Citizen app (with `location.coordinates` and `timestamp`). Verify both display correctly in the Police app's list and detail views.
+

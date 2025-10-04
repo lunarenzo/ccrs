@@ -1,0 +1,37 @@
+# Task ID: 6
+# Title: Implement Client-Side Auto-Assign Algorithm
+# Status: done
+# Dependencies: 2
+# Priority: medium
+# Description: Create the logic in the Admin app to automatically assign a report to the least-loaded officer based on workload.
+# Details:
+In a new helper file (`admin/src/lib/assign.ts`), implement the auto-assign logic. The algorithm must query for officers and their open cases (`status` in ['assigned','accepted','responding']) to find the one with the lowest workload. Ties are broken by picking the officer with the oldest `updatedAt` on their last assignment. The function should handle errors gracefully if no officers are available.
+
+# Test Strategy:
+With a pool of officers having varying workloads, trigger the auto-assign feature. Verify that the report is assigned to the correct officer based on the specified logic. Test the edge case where no officers are available and confirm an error toast is shown.
+
+# Subtasks:
+## 1. Create Auto-Assign Helper Function in `assign.ts` [done]
+### Dependencies: None
+### Description: Create a new file `admin/src/lib/assign.ts` and implement an exported async function `findLeastLoadedOfficer`. This function will contain the core logic for the auto-assignment feature, ensuring it is isolated and testable.
+### Details:
+The function must first query the 'users' collection for all documents where `role` is 'officer'. If no officers are found, it should throw an error (e.g., `throw new Error('No available officers found.')`). It will then perform a single query against the 'reports' collection for all reports where `status` is in `['assigned', 'accepted', 'responding']`. The function will then process these reports client-side to build a workload map (`officerId -> {workload: number, lastUpdate: Timestamp}`). The officer with the lowest workload count will be selected. Ties will be broken by choosing the officer with the oldest `lastUpdate` timestamp. The function will return the UID of the selected officer.
+
+## 2. Add 'Auto-Assign' UI Action to Reports Table [done]
+### Dependencies: None
+### Description: Modify the `admin/src/components/ReportsTable.tsx` component to include a new 'Auto-assign' action for reports that have a 'pending' status.
+### Details:
+In the actions column or menu for each report row, add a new button or menu item labeled 'Auto-assign'. This action should be conditionally rendered or disabled for any report where `status` is not 'pending'. When clicked, it must call a handler function passed via props from `Reports.tsx` (e.g., `onAutoAssign(report.id)`). Based on the existing manual assignment UI, this will likely involve adding an item to a dropdown menu for each row.
+
+## 3. Implement Handler to Orchestrate Auto-Assignment and Logging [done]
+### Dependencies: 6.1, 6.2
+### Description: In `admin/src/pages/Reports.tsx`, create the `handleAutoAssign` async function that connects the UI action to the assignment logic and database services.
+### Details:
+This function will accept a `reportId` as an argument. It will first call `findLeastLoadedOfficer()` from `admin/src/lib/assign.ts`. Upon receiving an officer UID, it will then call the existing `assignReport(reportId, officerId)` function from `admin/src/services/reportService.ts`. Immediately after a successful assignment, it must call `logAuditEvent` from `admin/src/services/auditService.ts` with the appropriate payload (`action: 'auto-assign'`, `actorUid`, `reportId`, etc.) to create an audit log entry.
+
+## 4. Implement Error Handling, Loading States, and User Feedback [done]
+### Dependencies: 6.3
+### Description: Enhance the `handleAutoAssign` function in `Reports.tsx` with robust error handling, loading states, and user-facing toast notifications.
+### Details:
+Wrap the logic within the `handleAutoAssign` function in a `try/catch` block. Implement a loading state (e.g., using `useState`) that is set to `true` at the start of the function and `false` in a `finally` block. This state should be used to show a loading indicator or disable the 'Auto-assign' button in `ReportsTable.tsx`. In the `catch` block, use the application's existing toast notification system to display a user-friendly error message (e.g., 'Auto-assign failed: No available officers found.'). On success, display a success toast (e.g., 'Report assigned to Officer Jane Doe.').
+

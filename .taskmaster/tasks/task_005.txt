@@ -1,0 +1,43 @@
+# Task ID: 5
+# Title: Implement Append-Only Audit Logging
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Create the `audit_logs` collection and integrate logging for key state-changing actions like assignment and status changes.
+# Details:
+Create a service to write to the append-only `audit_logs` collection. The log entry schema should be `{ action, actorUid, actorRole, reportId, timestamp, details }`. Integrate this service into all key actions specified in PRD section 9, starting with manual assignment.
+
+# Test Strategy:
+Perform a report assignment action in the Admin app. Verify that a corresponding document is created in the `audit_logs` collection with the correct `action: 'assign'`, `actorUid`, `reportId`, and other metadata.
+
+# Subtasks:
+## 1. Enhance Assignment Audit Logs with Previous and New Assignee [done]
+### Dependencies: None
+### Description: Update the report assignment logic to include both the previous and new assignee UIDs in the audit log details. This requires fetching the report's current state before making the assignment update.
+### Details:
+In `admin/src/pages/Reports.tsx`, locate the `handleAssignReport` function (or equivalent). Before calling `firebaseService.assignReportToOfficer`, read the report document to get the current `assignedTo` value. After the assignment is successful, call the `auditService` with the action `report_assigned`, and ensure the `details` object contains `{ previousAssignedTo: '...', newAssignedTo: '...' }`.
+
+## 2. Enrich Status and Priority Change Logs with Previous and New Values [done]
+### Dependencies: None
+### Description: Modify the status and priority update functions to log the state of the field both before and after the change.
+### Details:
+In `admin/src/pages/Reports.tsx`, find the handlers for changing a report's status and priority. For each handler, fetch the report's current `status` or `priority` value before the update. After the Firestore write succeeds, call the `auditService` with the appropriate action (`status_changed` or `priority_changed`) and a `details` payload of `{ prev: 'old_value', new: 'new_value' }`.
+
+## 3. Implement Detailed Deletion and PII-Safe Comment Logs [done]
+### Dependencies: None
+### Description: Update the deletion and commenting features to create audit logs with specific payloads: the full document for deletions and only the comment length for new comments.
+### Details:
+For deletions in `Reports.tsx`, read the full report document *before* calling the delete function. Pass the entire document data object as `priorDocSnapshot` in the `details` field of the `report_deleted` audit log. For the `addComment` handler, after the comment is successfully added, create a `comment_added` audit log where the `details` object is `{ commentLength: commentText.length }` to avoid storing PII.
+
+## 4. Verify Auth Logging and Firestore Append-Only Rules [done]
+### Dependencies: None
+### Description: Confirm that admin login/logout actions are being audited and that Firestore rules correctly enforce append-only access to the `audit_logs` collection.
+### Details:
+1. Examine `admin/src/contexts/AuthContext.tsx` to confirm that `logAdminLogin` and `logAdminLogout` from `auditService` are called within the respective `login` and `logout` functions. 2. Review `newlogin/firestore.rules` and `police/firestore.rules`. Verify the `match /audit_logs/{logId}` block allows `create` for authenticated admins but explicitly disallows `update` and `delete`. Document findings as a comment in the `auditService.ts` file.
+
+## 5. Create and Execute Manual Test Plan for All Audited Actions [done]
+### Dependencies: 5.1, 5.2, 5.3, 5.4
+### Description: Perform a full manual test of all implemented audit logging actions to ensure they are created correctly in Firestore with the right data and metadata.
+### Details:
+Create a formal test checklist. Execute the following actions in the Admin app and for each, verify in Firestore that a corresponding document is created in the `audit_logs` collection with the correct `action`, `actorUid`, `actorRole`, `reportId`, `timestamp`, and enriched `details` object as implemented in previous subtasks: 1. Assign report. 2. Change status. 3. Change priority. 4. Add comment. 5. Delete report. 6. Log in/out.
+

@@ -1,0 +1,32 @@
+# Task ID: 1
+# Title: Implement Canonical Data Model and Firestore Rules
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Align Firestore data structures across all apps as per the PRD and deploy foundational security rules and indexes.
+# Details:
+Define and implement the `reports` collection schema as specified in section 6 of the PRD. This includes handling nested location objects and ensuring all fields like `status`, `priority`, and timestamps are consistent. Deploy the canonical `firestore.rules` to enforce role-based permissions (Admin, Officer, Supervisor) and field-level validation. Deploy `firestore.indexes.json` to support required query patterns.
+<info added on 2025-09-15T13:51:31.223Z>
+2025-09-15 21:37 (+08) - Implemented and aligned canonical Firestore rules across both the citizen (`newlogin`) and police (`police`) applications.
+
+- **`newlogin/firestore.rules`:**
+  - Implemented canonical validation functions for fields like `priority`, `mainCategory`, and `submissionType`.
+  - Added strict type checking for all fields.
+  - Restricted citizen `create` operations to a specific set of allowed keys, preventing them from setting internal fields like `assignedTo` or `status`.
+  - Unified read permissions and officer-specific update transition logic to align with the canonical model.
+
+- **`police/firestore.rules`:**
+  - Refactored rules to match the canonical model, reusing the same validation functions as `newlogin`.
+  - Unified read permissions for authenticated users.
+  - Corrected the data model reference to use `user_id` as the report owner key instead of the legacy `citizenId`.
+  - Removed a redundant rule for anonymous report creation.
+
+- **Index Validation:**
+  - Verified that the existing composite indexes defined in `newlogin/firestore.indexes.json` and `police/firestore.indexes.json` are sufficient for the required query patterns (e.g., filtering by `status`, `assignedTo`, `user_id`, and `mainCategory` combined with a `timestamp` sort). No changes were necessary.
+
+- **Configuration:**
+  - Confirmed that the `firebase.json` configuration files in both app directories correctly point to their respective `firestore.rules` and `firestore.indexes.json` files. The rules and indexes are ready for deployment via the Firebase CLI.
+</info added on 2025-09-15T13:51:31.223Z>
+
+# Test Strategy:
+Verify all app queries run without Firestore index errors after deployment. Perform negative tests by attempting forbidden updates from incorrect roles (e.g., an officer trying to edit an unassigned report) and confirm they are rejected by security rules.

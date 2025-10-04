@@ -1,0 +1,11 @@
+# Task ID: 10
+# Title: E2E Test: Advanced Flows and Security Rules
+# Status: To Do
+# Dependencies: 6, 7, 8
+# Priority: medium
+# Description: Test advanced features like supervisor actions and SLA filters, and rigorously validate Firestore security rule enforcement.
+# Details:
+Execute test cases for supervisor flows (approving/rejecting closure), the auto-assign algorithm, and SLA filters. Crucially, perform negative testing by attempting actions that should be blocked by Firestore rules from different user roles to ensure security compliance.
+
+# Test Strategy:
+Follow the test cases from PRD section 10 covering supervisor actions, SLA filters, and negative tests. Confirm that all features work as expected and that unauthorized actions are correctly blocked with permission errors.

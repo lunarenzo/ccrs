@@ -1,0 +1,49 @@
+# Task ID: 2
+# Title: Develop Admin Manual Report Assignment Feature
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Build the UI and logic for an Admin to manually assign a report to a specific officer.
+# Details:
+In the Admin app (`admin/src/pages/Reports.tsx`), enable an admin to set a report's `priority`. Implement a UI to select an active officer from the `users` collection. On assignment, the app must update the report document with `assignedTo` (officer UID), set `status` to 'assigned', `assignmentStatus` to 'pending', and update the `updatedAt` timestamp.
+
+# Test Strategy:
+As an admin, assign a pending report to an officer. Verify in the Police app that the report appears in the officer's inbox in near real-time. Check Firestore to confirm the `assignedTo`, `status`, and `assignmentStatus` fields are correctly updated.
+
+# Subtasks:
+## 1. Create Firestore Service Functions for Officer and Report Updates [done]
+### Dependencies: None
+### Description: In the admin app, create the necessary data access functions to fetch active officers and to update a report document for assignment.
+### Details:
+Locate the primary Firestore service file (likely `admin/src/services/firebaseService.ts` or similar). Add a new function `getActiveOfficers()` that queries the `users` collection for documents where `role` is 'officer' and `status` is 'active'. Add a second function, `assignReportToOfficer(reportId, officerId)`, that performs an update on the specified report document in the `reports` collection. This update must set `assignedTo` to the officer's UID, `status` to 'assigned', `assignmentStatus` to 'pending', and `updatedAt` to `serverTimestamp()`.
+
+## 2. Implement Report Priority Selector UI [done]
+### Dependencies: None
+### Description: In the main reports view, add a UI element to allow an admin to set the priority for each report.
+### Details:
+In `admin/src/pages/Reports.tsx`, modify the component that renders each report item. Add a `Select` dropdown component with options ('Low', 'Medium', 'High'). On selection change, trigger a Firestore update to set the `priority` field on the corresponding report document. This can be a direct update or use a new helper function in the Firestore service.
+
+## 3. Build the 'Assign Report' Modal Component Shell [done]
+### Dependencies: None
+### Description: Create a new, reusable modal component that will be used to display the officer selection list.
+### Details:
+Create a new file `admin/src/components/AssignReportModal.tsx`. This component should accept `isOpen`, `onClose`, and `report` (the report object) as props. Add an 'Assign' button to each unassigned report row in `admin/src/pages/Reports.tsx`. Clicking this button should open the `AssignReportModal`, passing the relevant report data to it.
+
+## 4. Populate Assignment Modal with Active Officers [done]
+### Dependencies: None
+### Description: Integrate the data-fetching logic to display a list of selectable officers within the assignment modal.
+### Details:
+Inside `AssignReportModal.tsx`, use a `useEffect` hook to call the `getActiveOfficers()` function created in subtask 2.1. Render the fetched officers in a user-friendly, selectable list (e.g., a list of radio buttons or a searchable dropdown). Implement state management within the modal to track the currently selected officer.
+
+## 5. Implement Assignment Logic with Optimistic UI and Error Handling [done]
+### Dependencies: None
+### Description: Wire up the final assignment action, including the client-side Firestore write, optimistic UI updates, and user feedback.
+### Details:
+In `AssignReportModal.tsx`, create a handler for the 'Confirm Assignment' button. This handler will call the `assignReportToOfficer(reportId, selectedOfficerId)` service function. While the request is in flight, disable the confirm button and show a loading indicator (optimistic UI). On successful completion, close the modal and show a success toast. If the update fails, show an error toast with a descriptive message.
+
+## 6. Update Reports Page to Reflect Assignment Status [done]
+### Dependencies: None
+### Description: Ensure the main reports list UI updates in real-time to show a report's new 'assigned' status.
+### Details:
+Modify the report item rendering logic in `admin/src/pages/Reports.tsx`. For reports with `status` of 'assigned', the 'Assign' button should be hidden or replaced. Instead, display the name of the assigned officer (this may require a lookup or join on the client side) and the `assignmentStatus` ('pending'). The real-time update should be handled by the existing Firestore listener that populates the reports list.
+

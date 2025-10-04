@@ -1,0 +1,11 @@
+# Task ID: 7
+# Title: Build Admin SLA Filters and Dashboard Counters
+# Status: done
+# Dependencies: 1
+# Priority: medium
+# Description: Add filters and counter badges to the Admin dashboard to help monitor Service Level Agreements (SLAs).
+# Details:
+In `admin/src/pages/Reports.tsx`, implement two client-side filters: 'Unaccepted > 15m' (`status == 'assigned'`, `assignmentStatus == 'pending'`, `updatedAt < now-15m`) and 'No response > 30m' (`status == 'accepted'`, not `responding`, `updatedAt < now-30m`). Display the count for each filter as a badge in the UI.
+
+# Test Strategy:
+Create test reports that meet the criteria for each SLA filter. Apply the filters and verify that only the correct reports are displayed. Check that the counter badges show the correct counts.

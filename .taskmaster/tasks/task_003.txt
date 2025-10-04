@@ -1,0 +1,49 @@
+# Task ID: 3
+# Title: Update Citizen App for New Data Model Submission
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Modify the citizen app to submit new reports using the new canonical data model, particularly for location data.
+# Details:
+Update the report submission logic in `newlogin/services/reportService.ts` to structure location data as `location: { coordinates: { latitude: number, longitude: number } }`. Ensure all other fields submitted align with the canonical model defined in PRD section 6.
+
+# Test Strategy:
+Submit a new report from the citizen app. Inspect the created document in Firestore to verify its structure matches the new schema, especially the nested `location.coordinates` object.
+
+# Subtasks:
+## 1. Define Canonical ReportCreatePayload Type [done]
+### Dependencies: None
+### Description: In `newlogin/services/reportService.ts`, define and export a new TypeScript type named `ReportCreatePayload`. This type will represent the exact structure of a report document being created in Firestore, ensuring compile-time safety for the new data model.
+### Details:
+The `ReportCreatePayload` type should strictly match the canonical model. Key fields include `user_id: string`, `status: 'pending'`, `timestamp: FieldValue`, `updatedAt: FieldValue`, and most importantly, `location: { coordinates: { latitude: number; longitude: number }; address?: string; accuracy?: number }`. This type will serve as the return type for the payload mapper.
+
+## 2. Implement Canonical Payload Mapper Function [done]
+### Dependencies: 3.1
+### Description: In `newlogin/services/reportService.ts`, create a private helper function `mapToCanonicalPayload` that transforms the form data into the canonical structure for Firestore submission.
+### Details:
+This function will accept `reportData: ReportFormData`, `userId: string`, and `mediaUrls: string[]` as arguments and return an object of type `ReportCreatePayload`. It must map `reportData.location.latitude` and `reportData.location.longitude` to `location.coordinates`. It should also transform `reportData.location.address` (an object) into a single string for `location.address`, using `formattedAddress` if available, or otherwise composing a string from its parts. If no address is present, the field should be omitted.
+
+## 3. Integrate Mapper into submitReport Service [done]
+### Dependencies: 3.2
+### Description: Refactor the `submitReport` function in `newlogin/services/reportService.ts` to use the new `mapToCanonicalPayload` function.
+### Details:
+Replace the current inline `reportPayload` object construction with a call to `mapToCanonicalPayload`. Pass the necessary arguments (`reportData`, `user.uid`, `media_urls`) to the mapper. Add a `console.log('Submitting canonical payload:', canonicalPayload)` statement immediately before the `addDoc` call to log the final object being sent to Firestore for easier debugging.
+
+## 4. Verify Zod Schema and Document Transformation Strategy [done]
+### Dependencies: None
+### Description: Confirm that the Zod schema in `newlogin/utils/validation.ts` does not require changes. Add a comment in `newlogin/services/reportService.ts` to document the decision.
+### Details:
+The existing `reportFormSchema` can remain as is, as it correctly validates the data coming from the UI form. The data transformation is intentionally handled at the service boundary. Add a JSDoc comment above the `mapToCanonicalPayload` function explaining that its purpose is to decouple the internal form state from the canonical Firestore data model.
+
+## 5. Add Backward Compatibility Note for Read Operations [done]
+### Dependencies: None
+### Description: Add a block comment within `newlogin/services/reportService.ts` to clarify the scope of this change and its impact on data consumption.
+### Details:
+At the top of the `reportService.ts` file or above the `submitReport` function, add a comment explaining that this update only affects the 'write' path for new reports. Note that citizen app 'read' views are not yet updated and will be addressed in a separate task, ensuring clarity for future developers.
+
+## 6. Manually Test Submission and Verify Firestore Data [done]
+### Dependencies: 3.3
+### Description: Perform an end-to-end manual test by submitting a new report from the citizen application and verifying the created document's structure in the Firestore database.
+### Details:
+Steps: 1. Run the citizen app. 2. Create and submit a new report with location data. 3. Open the Firebase Console and navigate to the `reports` collection. 4. Find the newly created document. 5. Verify that the `location` field contains a `coordinates` object with `latitude` and `longitude` numbers, and that the `address` field under `location` is a string. Confirm the submission does not violate Firestore rules.
+
