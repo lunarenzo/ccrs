@@ -1,0 +1,43 @@
+# Product Requirements Document (PRD) for Crime and Complaint Reporting System (CCRS)
+
+## 1. Introduction
+
+The Crime and Complaint Reporting System (CCRS) is a mobile application designed to empower citizens to report incidents, such as crimes or civic issues, directly from their mobile devices. The app provides a streamlined process for submitting reports, including descriptive details, media evidence (photos/videos), and precise location data. The goal is to create a reliable and user-friendly platform that facilitates communication between the public and relevant authorities. This document outlines the requirements for the Minimum Viable Product (MVP).
+
+## 2. User Roles
+
+### 2.1. Citizen User
+- Can register for an account.
+- Can log in and log out.
+- Can submit incident reports.
+- Can view their own report history.
+- Can manage their profile.
+
+## 3. Core Features (MVP)
+
+### 3.1. User Authentication
+- **Sign Up**: Users can create a new account using an email address and password.
+- **Login**: Registered users can log in to their accounts.
+- **OTP Verification**: A one-time password (OTP) system will be used to verify the user's identity during registration or password reset.
+
+### 3.2. Incident Reporting
+- **Create Report Form**: A simple form to capture incident details.
+- **Categorization**: Users can select a category for the incident (e.g., Theft, Vandalism, Public Nuisance).
+- **Media Upload**: Users can upload photos or videos from their device's gallery or camera as evidence. Media will be stored using Cloudinary.
+- **Location Tagging**: The app will automatically capture the user's current GPS location to tag the incident. Users can also manually adjust the location on a map.
+
+### 3.3. Report Management
+- **Report History**: A screen that lists all reports submitted by the logged-in user, showing key information like date, category, and status.
+- **Report Details**: Tapping on a report in the history list will show a detailed view of the report, including all submitted information and media.
+
+### 3.4. User Profile
+- A simple profile screen where users can view their account information.
+
+## 4. Technical Stack
+- **Framework**: React Native with Expo
+- **Authentication & Database**: Firebase (Authentication, Firestore)
+- **Media Storage**: Cloudinary
+- **State Management**: React Context API
+
+## 5. MVP Goal
+The primary goal of the MVP is to deliver a functional application that allows users to successfully register, log in, submit a detailed incident report with media and location, and view their submission history. The focus is on core functionality, stability, and a clean user interface.
