@@ -36,6 +36,14 @@ service cloud.firestore {
     function isCitizen() {
       return hasRole('citizen');
     }
+    
+    function isDeskOfficer() {
+      return hasRole('desk_officer');
+    }
+    
+    function isLawEnforcementOrDesk() {
+      return isOfficer() || isSupervisor() || isDeskOfficer();
+    }
 
     // Helper: validate Expo push token format
     function isValidExpoPushToken(token) {
@@ -48,6 +56,7 @@ service cloud.firestore {
     function validSubmissionTypes() { return ['anonymous', 'authenticated']; }
     function validMainCategories() { return ['crime', 'child_abuse', 'women_abuse', 'other']; }
     function validReportStatuses() { return ['pending', 'validated', 'assigned', 'accepted', 'responding', 'resolved', 'rejected']; }
+    function validTriageLevels() { return ['critical', 'high', 'medium', 'low']; }
 
     function isValidCoordinates(coords) {
       return coords is map && coords.latitude is number && coords.longitude is number;
@@ -78,7 +87,17 @@ service cloud.firestore {
         'updatedAt',
         'submission_type',
         'media_count',
-        'has_location'
+        'has_location',
+        // Sprint 1: Emergency Triage fields
+        'isEmergency',
+        'triageLevel',
+        'triageNotes',
+        'triageBy',
+        'triageAt',
+        // Sprint 1: Blotter numbering fields
+        'blotterNumber',
+        'blotterCreatedAt',
+        'blotterCreatedBy'
       ]);
     }
 
@@ -111,11 +130,11 @@ service cloud.firestore {
       // Allow supervisors to read officer profiles in their unit
       allow read: if isSupervisor();
       
-      // Allow user creation during registration (citizen, officer, admin)
+      // Allow user creation during registration (citizen, officer, admin, desk_officer)
       allow create: if request.auth != null && 
                    request.auth.uid == userId &&
                    request.resource.data.keys().hasAll(['email', 'role', 'createdAt']) &&
-                   request.resource.data.role in ['citizen', 'officer', 'supervisor', 'admin'];
+                   request.resource.data.role in ['citizen', 'officer', 'supervisor', 'admin', 'desk_officer'];
     }
 
     // ============================================
@@ -172,12 +191,13 @@ service cloud.firestore {
                     );
       
       // READ RULES
-      // Unified read access for owner, assigned officer, supervisors, and admins
+      // Unified read access for owner, assigned officer, supervisors, admins, and desk officers
       allow read: if request.auth != null && (
         resource.data.user_id == request.auth.uid ||          // Citizens see their own reports
         resource.data.assignedTo == request.auth.uid ||       // Officers see assigned reports  
         isSupervisor() ||                                      // Supervisors see all reports
-        isAdmin()                                              // Admins see all reports
+        isAdmin() ||                                           // Admins see all reports
+        isDeskOfficer()                                        // Desk officers see all pending reports
       );
       
       // UPDATE RULES
@@ -220,6 +240,28 @@ service cloud.firestore {
                       // Note-only update (no status change) — allow updating just officerNotes and updatedAt
                       (request.resource.data.diff(resource.data).changedKeys().hasOnly(['officerNotes', 'updatedAt']))
                     );
+      
+      // Desk officers can validate pending reports and add triage information
+      allow update: if request.auth != null &&
+                    isDeskOfficer() &&
+                    resource.data.status == 'pending' &&
+                    request.resource.data.diff(resource.data).changedKeys().hasOnly([
+                      'status',
+                      'triageLevel',
+                      'triageNotes', 
+                      'triageBy',
+                      'triageAt',
+                      'blotterNumber',
+                      'blotterCreatedAt',
+                      'blotterCreatedBy',
+                      'updatedAt',
+                      'assignedTo'
+                    ]) &&
+                    // Allow validation transitions
+                    (request.resource.data.status in ['validated', 'rejected']) &&
+                    // Ensure triage fields are properly set if provided
+                    (!request.resource.data.keys().hasAny(['triageLevel']) || request.resource.data.triageLevel in validTriageLevels()) &&
+                    (!request.resource.data.keys().hasAny(['triageBy']) || request.resource.data.triageBy == request.auth.uid);
       
       // Supervisors can read and update all reports (full access)
       allow read, update: if isSupervisor();
@@ -266,6 +308,15 @@ service cloud.firestore {
 
       // Logs are immutable: no updates or deletes for anyone (including admins)
       allow update, delete: if false;
+    }
+
+    // ============================================
+    // COUNTERS COLLECTION (for blotter numbering)
+    // ============================================
+    
+    match /counters/{counterId} {
+      // Desk officers, supervisors, and admins can read and update counters
+      allow read, write: if isDeskOfficer() || isSupervisor() || isAdmin();
     }
 
     // ============================================

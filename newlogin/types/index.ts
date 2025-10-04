@@ -24,6 +24,16 @@ export interface Report {
   status: ReportStatus;
   timestamp: Date;
   updatedAt: Date;
+  // Sprint 1: Emergency Triage fields
+  isEmergency?: boolean;
+  triageLevel?: TriageLevel;
+  triageNotes?: string;
+  triageBy?: string; // Officer UID
+  triageAt?: Date;
+  // Sprint 1: Blotter numbering fields
+  blotterNumber?: string;
+  blotterCreatedAt?: Date;
+  blotterCreatedBy?: string; // Officer UID
 }
 
 export type MainCategory = 'crime' | 'child_abuse' | 'women_abuse' | 'other';
@@ -71,6 +81,8 @@ export type ReportStatus =
   | 'responding'
   | 'resolved'
   | 'rejected';
+
+export type TriageLevel = 'critical' | 'high' | 'medium' | 'low';
 
 export interface Location {
   latitude: number;

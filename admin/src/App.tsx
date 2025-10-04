@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard.tsx';
 import Users from './pages/Users.tsx';
 import Reports from './pages/Reports.tsx';
+import DeskOfficer from './pages/DeskOfficer';
 import Login from './pages/Login';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './hooks/useTheme';
@@ -30,6 +31,11 @@ function App() {
                   </ProtectedRoute>
                 } />
                 <Route path="reports" element={<Reports />} />
+                <Route path="desk" element={
+                  <ProtectedRoute allowedRoles={['desk_officer', 'admin', 'supervisor']}>
+                    <DeskOfficer />
+                  </ProtectedRoute>
+                } />
               </Route>
             </Routes>
           </Router>
