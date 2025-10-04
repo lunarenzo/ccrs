@@ -1,4 +1,4 @@
-import { doc, runTransaction, Timestamp } from 'firebase/firestore';
+import { doc, runTransaction, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 export interface BlotterCounter {
@@ -110,7 +110,7 @@ export class BlotterService {
       const counterDocId = `${targetYear}-${targetMonth.toString().padStart(2, '0')}`;
       const counterRef = doc(db, 'counters', counterDocId);
       
-      const counterDoc = await counterRef.get();
+      const counterDoc = await getDoc(counterRef);
       
       if (counterDoc.exists()) {
         return counterDoc.data() as BlotterCounter;

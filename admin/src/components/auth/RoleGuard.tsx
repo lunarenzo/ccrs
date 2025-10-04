@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../../contexts/AuthContext';
 import { Shield, Warning, Prohibit, Clock } from 'phosphor-react';
@@ -64,21 +64,21 @@ export function AccountStatusScreen({ status, userRole }: AccountStatusProps) {
   );
 }
 
-// Access Denied Screen
-export function AccessDeniedScreen({ userRole }: { userRole?: string }) {
+// Silent Redirect Component - doesn't reveal route existence
+export function SilentRedirect({ userRole }: { userRole?: string }) {
+  const navigate = useNavigate();
+  
+  React.useEffect(() => {
+    // Immediate silent redirect based on role
+    const redirectPath = userRole === 'desk_officer' ? '/desk' : '/';
+    navigate(redirectPath, { replace: true });
+  }, [navigate, userRole]);
+
+  // Show minimal loading state during redirect
   return (
     <div className="d-flex justify-content-center align-items-center min-vh-100">
-      <div className="text-center" style={{ maxWidth: '400px' }}>
-        <Alert variant="danger" className="p-4">
-          <div className="mb-3">
-            <Shield size={64} />
-          </div>
-          <Alert.Heading>Access Denied</Alert.Heading>
-          <p className="mb-0">
-            You don't have sufficient privileges to access this area. 
-            {userRole && ` Your current role: ${userRole}`}
-          </p>
-        </Alert>
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">Loading...</span>
       </div>
     </div>
   );
@@ -122,7 +122,8 @@ export function RoleGuard({
       return <>{fallbackComponent}</>;
     }
     
-    return <AccessDeniedScreen userRole={user.role} />;
+    // Silent redirect instead of showing access denied
+    return <SilentRedirect userRole={user.role} />;
   }
 
   return <>{children}</>;

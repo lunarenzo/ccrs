@@ -55,7 +55,8 @@ export const reportFormSchema = z.object({
       formattedAddress: z.string().optional()
     }).optional(),
     accuracy: z.number().optional()
-  })
+  }),
+  isEmergency: z.boolean().optional()
 });
 
 // User registration validation schema

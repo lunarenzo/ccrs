@@ -108,6 +108,7 @@ export interface ReportFormData {
   description: string;
   media?: string;
   location?: Location;
+  isEmergency?: boolean;
 }
 
 // Authentication types

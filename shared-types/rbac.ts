@@ -4,7 +4,7 @@
  */
 
 // User Roles
-export type UserRole = 'citizen' | 'officer' | 'supervisor' | 'admin';
+export type UserRole = 'citizen' | 'officer' | 'supervisor' | 'admin' | 'desk_officer';
 
 // User Status
 export type UserStatus = 'active' | 'inactive' | 'suspended';
@@ -81,6 +81,16 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSystem: false,
     canAccessAdminDashboard: false,
     canAccessPoliceApp: true
+  },
+  desk_officer: {
+    canViewAllReports: false, // Only pending reports for validation
+    canEditAllReports: false, // Only triage and validation actions
+    canAssignReports: false,
+    canManageUsers: false,
+    canViewAuditLogs: false,
+    canManageSystem: false,
+    canAccessAdminDashboard: true, // Limited access to desk officer portal
+    canAccessPoliceApp: false
   },
   admin: {
     canViewAllReports: true,

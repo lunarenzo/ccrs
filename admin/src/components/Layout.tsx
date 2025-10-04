@@ -53,14 +53,26 @@ function Layout() {
   }
 
 
-  const { isAdmin, isSupervisor } = useRoleCheck();
+  const { isAdmin, isSupervisor, hasRole } = useRoleCheck();
 
   // Navigation sections (role-based)
   const getNavItems = () => {
-    const baseItems = [
-      { path: '/', label: 'Dashboard', icon: House, roles: ['admin', 'supervisor'] },
-      { path: '/reports', label: 'Reports', icon: FileText, roles: ['admin', 'supervisor'] }
-    ];
+    const baseItems = [];
+    
+    // Admin and Supervisor items
+    if (isAdmin || isSupervisor) {
+      baseItems.push(
+        { path: '/', label: 'Dashboard', icon: House, roles: ['admin', 'supervisor'] },
+        { path: '/reports', label: 'Reports', icon: FileText, roles: ['admin', 'supervisor'] }
+      );
+    }
+    
+    // Desk Officer items
+    if (hasRole(['desk_officer'])) {
+      baseItems.push(
+        { path: '/desk', label: 'Desk Officer Portal', icon: ClipboardText, roles: ['desk_officer'] }
+      );
+    }
 
     // Admin-only items
     if (isAdmin) {
@@ -93,6 +105,7 @@ function Layout() {
       admin: 'Administrator',
       supervisor: 'Supervisor',
       officer: 'Officer',
+      desk_officer: 'Desk Officer',
       citizen: 'Citizen'
     };
     return roleLabels[role as keyof typeof roleLabels] || 'User';

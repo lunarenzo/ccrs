@@ -38,6 +38,9 @@ export const STATUS_COLORS = {
   validated: '#0d6efd',   // Bootstrap primary  
   responding: '#fd7e14',  // Bootstrap orange
   resolved: '#198754',    // Bootstrap success
-  rejected: '#dc3545'     // Bootstrap danger
+  rejected: '#dc3545',    // Bootstrap danger
+  assigned: '#6f42c1',    // Bootstrap purple for assigned status
+  accepted: '#17a2b8',    // Bootstrap teal for accepted status
+  investigating: '#20c997' // Bootstrap success variant for investigating
 } as const;
 

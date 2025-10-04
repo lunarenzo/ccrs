@@ -171,6 +171,7 @@ function Users() {
       case 'admin': return <Shield size={16} weight="fill" />;
       case 'supervisor': return <UserCircle size={16} weight="fill" />;
       case 'officer': return <Shield size={16} />;
+      case 'desk_officer': return <Shield size={16} weight="duotone" />;
       default: return <UsersIcon size={16} />;
     }
   };
@@ -180,6 +181,7 @@ function Users() {
       case 'admin': return 'danger';
       case 'supervisor': return 'warning';
       case 'officer': return 'info';
+      case 'desk_officer': return 'primary';
       default: return 'secondary';
     }
   };

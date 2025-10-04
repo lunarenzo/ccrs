@@ -255,10 +255,15 @@ service cloud.firestore {
                       'blotterCreatedAt',
                       'blotterCreatedBy',
                       'updatedAt',
-                      'assignedTo'
+                      'assignedTo',
+                      'assignmentStatus'
                     ]) &&
-                    // Allow validation transitions
-                    (request.resource.data.status in ['validated', 'rejected']) &&
+                    // Allow validation and assignment transitions
+                    (request.resource.data.status in ['validated', 'rejected', 'assigned']) &&
+                    // If status is assigned, must have assignedTo and assignmentStatus
+                    (request.resource.data.status != 'assigned' || 
+                     (request.resource.data.keys().hasAny(['assignedTo']) && request.resource.data.assignedTo != null &&
+                      request.resource.data.keys().hasAny(['assignmentStatus']) && request.resource.data.assignmentStatus == 'pending')) &&
                     // Ensure triage fields are properly set if provided
                     (!request.resource.data.keys().hasAny(['triageLevel']) || request.resource.data.triageLevel in validTriageLevels()) &&
                     (!request.resource.data.keys().hasAny(['triageBy']) || request.resource.data.triageBy == request.auth.uid);

@@ -43,7 +43,7 @@ export default function EmergencyTriageScreen() {
   };
 
   const handleNonEmergency = () => {
-    router.replace('/(tabs)');
+    router.replace('/(tabs)?isEmergency=false');
   };
 
   const handleBack = () => {

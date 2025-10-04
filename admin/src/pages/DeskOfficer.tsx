@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Badge, Button, Modal, Form, Alert, Spinner } from 'react-bootstrap';
-import { Clock, FileText, CheckCircle, XCircle, AlertTriangle, User } from 'phosphor-react';
+import { Clock, FileText, CheckCircle, XCircle, Warning, User } from 'phosphor-react';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, Timestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -114,6 +114,7 @@ const DeskOfficerPortal: React.FC = () => {
         if (assignToOfficer) {
           updateData.assignedTo = assignToOfficer;
           updateData.status = 'assigned';
+          updateData.assignmentStatus = 'pending';
         }
 
         await updateDoc(reportRef, updateData);
@@ -161,7 +162,7 @@ const DeskOfficerPortal: React.FC = () => {
 
   const getCategoryIcon = (category: string) => {
     if (category.includes('emergency') || category.includes('critical')) {
-      return <AlertTriangle size={20} weight="fill" />;
+      return <Warning size={20} weight="fill" />;
     }
     return <FileText size={20} />;
   };
@@ -229,7 +230,7 @@ const DeskOfficerPortal: React.FC = () => {
                       </div>
                       {report.isEmergency && (
                         <Badge bg="danger">
-                          <AlertTriangle size={14} className="me-1" />
+                          <Warning size={14} className="me-1" />
                           Emergency
                         </Badge>
                       )}

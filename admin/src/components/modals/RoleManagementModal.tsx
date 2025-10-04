@@ -120,6 +120,7 @@ export default function RoleManagementModal({
       case 'admin': return <Shield size={16} weight="fill" />;
       case 'supervisor': return <UserCircle size={16} weight="fill" />;
       case 'officer': return <Shield size={16} />;
+      case 'desk_officer': return <Shield size={16} weight="duotone" />;
       default: return <Users size={16} />;
     }
   };
@@ -132,6 +133,8 @@ export default function RoleManagementModal({
         return 'Manage officers and reports within jurisdiction - limited admin access';
       case 'officer':
         return 'Handle assigned reports and evidence collection - police app access';
+      case 'desk_officer':
+        return 'Validate pending reports and assign blotter numbers - desk officer portal access';
       case 'citizen':
         return 'Submit reports and manage personal profile - citizen app access';
       default:
@@ -189,7 +192,7 @@ export default function RoleManagementModal({
               <div className="mb-4">
                 <Form.Label className="fw-bold">User Role</Form.Label>
                 <div className="row">
-                  {(['citizen', 'officer', 'supervisor', 'admin'] as UserRole[]).map((roleOption) => (
+                  {(['citizen', 'officer', 'supervisor', 'desk_officer', 'admin'] as UserRole[]).map((roleOption) => (
                     <div key={roleOption} className="col-md-6 mb-3">
                       <Form.Check
                         type="radio"

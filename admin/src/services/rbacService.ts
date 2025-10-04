@@ -1,7 +1,7 @@
 import { collection, getDocs, orderBy, query, doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-export type UserRole = 'citizen' | 'officer' | 'supervisor' | 'admin';
+export type UserRole = 'citizen' | 'officer' | 'supervisor' | 'admin' | 'desk_officer';
 export type UserStatus = 'active' | 'inactive' | 'suspended';
 
 export interface Jurisdiction {

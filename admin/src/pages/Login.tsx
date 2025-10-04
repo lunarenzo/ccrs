@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Form, Alert } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,8 +11,17 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  
+  // Silent redirect based on user role after authentication
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      // Silent redirect to appropriate dashboard without revealing other routes exist
+      const redirectPath = user.role === 'desk_officer' ? '/desk' : '/';
+      navigate(redirectPath, { replace: true });
+    }
+  }, [authLoading, isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,13 +30,26 @@ function Login() {
 
     try {
       await login(email, password);
-      navigate('/');
+      // Don't navigate here - let the useEffect handle navigation after auth state changes
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials and ensure you have admin privileges.');
-    } finally {
       setLoading(false);
     }
   };
+
+  // Show loading state while authentication is processing
+  if (authLoading || (isAuthenticated && user)) {
+    return (
+      <Container fluid className="vh-100 d-flex align-items-center justify-content-center bg-ccrs-gray">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-ccrs-secondary">Authenticating...</p>
+        </div>
+      </Container>
+    );
+  }
 
   return (
     <Container fluid className="vh-100 d-flex align-items-center justify-content-center bg-ccrs-gray">
@@ -73,20 +95,20 @@ function Login() {
 
                 <Alert variant="info" className="py-2 mb-3">
                   <small>
-                    <strong>Demo Login:</strong><br />
-                    Email: admin@example.com<br />
-                    Password: admin123
+                    <strong>Test Accounts:</strong><br />
+                    Admin: admin@example.com / admin123<br />
+                    Desk Officer: desk.officer@test.com / TestPass123!
                   </small>
                 </Alert>
 
                 <div className="d-grid">
                   <Button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || authLoading}
                     variant="primary"
                     size="lg"
                   >
-                    {loading ? 'Signing in...' : 'Sign In'}
+                    {(loading || authLoading) ? 'Signing in...' : 'Sign In'}
                   </Button>
                 </div>
               </Form>

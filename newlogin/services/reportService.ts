@@ -41,6 +41,7 @@ export interface ReportCreatePayload {
   submission_type: 'anonymous' | 'authenticated';
   media_count?: number;
   has_location?: boolean;
+  isEmergency?: boolean;
 }
 
 export interface ReportSubmissionResult {
@@ -128,7 +129,8 @@ export class ReportService {
       updatedAt: Timestamp.now(),
       submission_type: isAnonymous ? 'anonymous' : 'authenticated',
       media_count: mediaUrls.length,
-      has_location: !!reportData.location
+      has_location: !!reportData.location,
+      isEmergency: reportData.isEmergency
     };
 
     return payload;

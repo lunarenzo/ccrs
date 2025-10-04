@@ -12,6 +12,7 @@ import { auditService } from '../services/auditService';
 import type { CCRSUser, UserRole, UserStatus, CustomClaims } from '../../../shared-types/rbac';
 
 interface AdminUser extends CCRSUser {
+  uid: string; // Firebase UID for compatibility
   // Additional fields specific to admin interface if needed
   permissions?: string[];
 }
@@ -21,6 +22,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSupervisor: boolean;
+  isDeskOfficer: boolean;
   hasRole: (role: UserRole | UserRole[]) => boolean;
   hasPermission: (permission: string) => boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -63,6 +65,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const supervisorPermissions = ['view_reports', 'edit_reports', 'assign_reports', 'view_users'];
       return supervisorPermissions.includes(permission);
     }
+    if (user.role === 'desk_officer') {
+      // Define desk officer permissions
+      const deskOfficerPermissions = ['validate_reports', 'triage_reports', 'assign_blotter'];
+      return deskOfficerPermissions.includes(permission);
+    }
     return false;
   };
 
@@ -92,11 +99,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const effectiveRole = customClaims.role ?? (userData as any).role;
           const effectiveStatus = customClaims.status ?? (userData as any).status;
 
-          // Enforce admin/supervisor access and active status
-          if (!effectiveRole || !['admin', 'supervisor'].includes(effectiveRole as any)) {
+          // Enforce admin/supervisor/desk_officer access and active status
+          if (!effectiveRole || !['admin', 'supervisor', 'desk_officer'].includes(effectiveRole as any)) {
             await signOut(auth);
             setUser(null);
-            console.error('Access denied: Admin or Supervisor privileges required');
+            console.error('Access denied: Admin, Supervisor, or Desk Officer privileges required');
             setLoading(false);
             return;
           }
@@ -112,6 +119,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const adminUser: AdminUser = {
             ...userData,
             id: firebaseUser.uid,
+            uid: firebaseUser.uid, // Add uid for compatibility
             email: firebaseUser.email || (userData as any).email || '',
             fullName: (userData as any).fullName || (userData as any).name || 'Admin User',
             role: (effectiveRole as any),
@@ -155,10 +163,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
+      setLoading(true); // Set loading during login
       await signInWithEmailAndPassword(auth, email, password);
       // User state will be set by the onAuthStateChanged listener
+      // Don't set loading to false here - let onAuthStateChanged handle it
     } catch (error: any) {
       console.error('Login error:', error);
+      setLoading(false); // Only set loading false on error
       throw new Error(error.message || 'Login failed');
     }
   };
@@ -189,6 +200,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
     isSupervisor: user?.role === 'supervisor',
+    isDeskOfficer: user?.role === 'desk_officer',
     hasRole,
     hasPermission,
     login,

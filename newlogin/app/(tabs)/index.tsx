@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { CategorySelector, UploadingFile } from '../../components/ui';
 import { useAlertActions } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,6 +26,7 @@ export default function ReportScreen() {
   const { theme } = useTheme();
   const styles = useStyles(theme);
   const { user } = useAuth();
+  const { isEmergency: isEmergencyParam } = useLocalSearchParams<{ isEmergency?: string }>();
   const {
     showLocationSuccess,
     showLocationError,
@@ -47,6 +49,7 @@ export default function ReportScreen() {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [isFormValid, setIsFormValid] = useState(false);
+  const [isEmergency] = useState<boolean>(isEmergencyParam === 'false' ? false : true); // Default to emergency if not specified
 
   useEffect(() => {
     const validateForm = () => {
@@ -217,6 +220,7 @@ export default function ReportScreen() {
         description,
         location: cleanLocation,
         mediaUrls: mediaFiles.map(media => media.url),
+        isEmergency,
       };
 
       try {
