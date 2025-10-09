@@ -38,20 +38,52 @@ export function getResponsiveClasses(base: string, breakpoints: Record<string, s
 }
 
 /**
- * Format date for display
+ * Format date for display with Philippine locale and timezone
  * @param date - Date to format
- * @returns Formatted date string
+ * @returns Formatted date string in Philippine format
  */
 export function formatDate(date: Date | string): string {
   try {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.toLocaleDateString('en-US', {
+    return dateObj.toLocaleDateString('en-PH', {
+      timeZone: 'Asia/Manila',
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: true
     });
+  } catch {
+    return 'Invalid Date';
+  }
+}
+
+/**
+ * Get current date/time in Philippine timezone
+ * @returns Date object adjusted to Philippine timezone
+ */
+export function getPhilippineTime(): Date {
+  return new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+}
+
+/**
+ * Format date for Philippine locale with timezone
+ * @param date - Date to format
+ * @param options - Additional formatting options
+ * @returns Formatted date string
+ */
+export function formatPhilippineDate(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const defaultOptions: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      ...options
+    };
+    return dateObj.toLocaleDateString('en-PH', defaultOptions);
   } catch {
     return 'Invalid Date';
   }

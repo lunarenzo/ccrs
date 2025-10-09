@@ -70,7 +70,7 @@ function Login() {
                 <Input
                   label="Email Address"
                   type="email"
-                  placeholder="admin@example.com"
+                  placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -96,7 +96,7 @@ function Login() {
                 <Alert variant="info" className="py-2 mb-3">
                   <small>
                     <strong>Test Accounts:</strong><br />
-                    Admin: admin@example.com / admin123<br />
+                    Admin: admin@ccrs-system.com / Admin123!<br />
                     Desk Officer: desk.officer@test.com / TestPass123!
                   </small>
                 </Alert>

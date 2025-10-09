@@ -25,12 +25,16 @@ service cloud.firestore {
       return hasRole('officer');
     }
     
+    function isInvestigator() {
+      return hasRole('investigator') || hasRole('officer'); // Officers can act as investigators
+    }
+    
     function isSupervisor() {
       return hasRole('supervisor');
     }
     
     function isLawEnforcement() {
-      return isOfficer() || isSupervisor();
+      return isOfficer() || isSupervisor() || isInvestigator();
     }
     
     function isCitizen() {
@@ -42,7 +46,7 @@ service cloud.firestore {
     }
     
     function isLawEnforcementOrDesk() {
-      return isOfficer() || isSupervisor() || isDeskOfficer();
+      return isOfficer() || isSupervisor() || isDeskOfficer() || isInvestigator();
     }
 
     // Helper: validate Expo push token format
@@ -55,8 +59,10 @@ service cloud.firestore {
     function validPriorities() { return ['low', 'medium', 'high', 'critical']; }
     function validSubmissionTypes() { return ['anonymous', 'authenticated']; }
     function validMainCategories() { return ['crime', 'child_abuse', 'women_abuse', 'other']; }
-    function validReportStatuses() { return ['pending', 'validated', 'assigned', 'accepted', 'responding', 'resolved', 'rejected']; }
+    function validReportStatuses() { return ['pending', 'validated', 'assigned', 'accepted', 'responding', 'investigating', 'resolved', 'closed', 'rejected', 'archived']; }
     function validTriageLevels() { return ['critical', 'high', 'medium', 'low']; }
+    function validApprovalStatuses() { return ['pending', 'approved', 'denied']; }
+    function validAssignmentStatuses() { return ['pending', 'accepted', 'declined']; }
 
     function isValidCoordinates(coords) {
       return coords is map && coords.latitude is number && coords.longitude is number;
@@ -97,7 +103,15 @@ service cloud.firestore {
         // Sprint 1: Blotter numbering fields
         'blotterNumber',
         'blotterCreatedAt',
-        'blotterCreatedBy'
+        'blotterCreatedBy',
+        // Sprint 2: Investigation & Approval fields
+        'crimeCategory',
+        'crimeCode',
+        'statusHistory',
+        'irfGenerated',
+        'irfPdfUrl',
+        'supervisorApproval',
+        'reassignmentHistory'
       ]);
     }
 
@@ -202,9 +216,9 @@ service cloud.firestore {
       
       // UPDATE RULES
       
-      // Officers can update reports assigned to them with restricted fields and valid transitions
+      // Investigators/Officers can update reports assigned to them with restricted fields and valid transitions
       allow update: if request.auth != null &&
-                    isOfficer() &&
+                    (isInvestigator() || isOfficer()) &&
                     resource.data.assignedTo == request.auth.uid &&
                     // Only allow specific fields
                     request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -214,32 +228,17 @@ service cloud.firestore {
                       'resolutionNotes',
                       'updatedAt',
                       'declineReason',
-                      'assignedTo'
+                      'assignedTo',
+                      'crimeCategory',
+                      'crimeCode',
+                      'statusHistory'
                     ]) &&
-                    // Enforce basic state transitions
-                    (
-                      // Accept assignment -> accepted
-                      (resource.data.status == 'assigned' &&
-                       request.resource.data.status == 'accepted' &&
-                       request.resource.data.assignmentStatus == 'accepted' &&
-                       request.resource.data.assignedTo == request.auth.uid) ||
-
-                      // accepted -> responding
-                      (resource.data.status == 'accepted' &&
-                       request.resource.data.status == 'responding') ||
-
-                      // responding -> resolved/rejected
-                      (resource.data.status == 'responding' &&
-                       request.resource.data.status in ['resolved', 'rejected']) ||
-
-                      // Decline assignment -> unassigned
-                      (request.resource.data.assignmentStatus == 'declined' &&
-                       request.resource.data.status == 'unassigned' &&
-                       request.resource.data.assignedTo == null) ||
-
-                      // Note-only update (no status change) — allow updating just officerNotes and updatedAt
-                      (request.resource.data.diff(resource.data).changedKeys().hasOnly(['officerNotes', 'updatedAt']))
-                    );
+                    // Enforce enhanced state transitions for Sprint 2
+                    isValidStatusTransition(resource.data.status, request.resource.data.status) &&
+                    // Ensure status history is properly maintained
+                    (!request.resource.data.keys().hasAny(['statusHistory']) || 
+                     (request.resource.data.statusHistory is list && 
+                      request.resource.data.statusHistory.size() > resource.data.get('statusHistory', []).size()));
       
       // Desk officers can validate pending reports and add triage information
       allow update: if request.auth != null &&
@@ -268,8 +267,22 @@ service cloud.firestore {
                     (!request.resource.data.keys().hasAny(['triageLevel']) || request.resource.data.triageLevel in validTriageLevels()) &&
                     (!request.resource.data.keys().hasAny(['triageBy']) || request.resource.data.triageBy == request.auth.uid);
       
-      // Supervisors can read and update all reports (full access)
-      allow read, update: if isSupervisor();
+      // Supervisors can reassign cases and approve closures
+      allow update: if isSupervisor() &&
+                    (
+                      // Case reassignment
+                      isReassignmentUpdate(resource.data, request.resource.data) ||
+                      // Approval actions
+                      isApprovalUpdate(resource.data, request.resource.data) ||
+                      // General supervisor oversight
+                      request.resource.data.diff(resource.data).changedKeys().hasOnly([
+                        'assignedTo', 'assignmentStatus', 'status', 'supervisorApproval',
+                        'reassignmentHistory', 'statusHistory', 'updatedAt'
+                      ])
+                    );
+      
+      // Supervisors can read all reports
+      allow read: if isSupervisor();
       
       // Admins can read, update, and delete all reports (full access)
       allow read, update, delete: if isAdmin();
@@ -324,6 +337,79 @@ service cloud.firestore {
       allow read, write: if isDeskOfficer() || isSupervisor() || isAdmin();
     }
 
+    // ============================================
+    // SPRINT 2: NEW COLLECTIONS
+    // ============================================
+    
+    // Crime Categories Collection
+    match /crimeCategories/{categoryId} {
+      // Read access for all authenticated users (for dropdowns)
+      allow read: if request.auth != null;
+      
+      // Write access restricted to admins and supervisors
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+    
+    // IRF Templates Collection
+    match /irfTemplates/{templateId} {
+      // Read access for desk officers, investigators, supervisors, and admins
+      allow read: if isDeskOfficer() || isInvestigator() || isSupervisor() || isAdmin();
+      
+      // Write access restricted to admins only
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Approval Queue Collection
+    match /approvalQueue/{approvalId} {
+      // Investigators can read their submissions and create new approvals
+      allow read: if (isInvestigator() && resource.data.submittedBy == request.auth.uid) ||
+                     isSupervisor() || isAdmin();
+      
+      allow create: if isInvestigator() && 
+                       request.resource.data.submittedBy == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+      
+      // Supervisors can update approval status
+      allow update: if isSupervisor() &&
+                       resource.data.status == 'pending' &&
+                       request.resource.data.status in validApprovalStatuses() &&
+                       request.resource.data.diff(resource.data).changedKeys().hasOnly([
+                         'status', 'remarks', 'approvedBy', 'approvedAt', 'updatedAt'
+                       ]);
+      
+      // No deletion allowed (audit trail)
+      allow delete: if false;
+    }
+    
+    // Status transition validation helper functions
+    function isValidStatusTransition(currentStatus, newStatus) {
+      let validTransitions = {
+        'pending': ['validated', 'rejected'],
+        'validated': ['assigned'],
+        'assigned': ['accepted', 'declined'],
+        'accepted': ['responding'],
+        'responding': ['investigating'],
+        'investigating': ['resolved', 'investigating'], // Can update within investigating
+        'resolved': ['closed', 'investigating'], // Can reopen if needed
+        'closed': ['archived'],
+        'archived': []
+      };
+      return newStatus in validTransitions[currentStatus];
+    }
+    
+    function isReassignmentUpdate(oldData, newData) {
+      return newData.diff(oldData).changedKeys().hasOnly(['assignedTo', 'reassignmentHistory', 'updatedAt']) &&
+             newData.assignedTo != oldData.assignedTo &&
+             newData.reassignmentHistory is list;
+    }
+    
+    function isApprovalUpdate(oldData, newData) {
+      return newData.diff(oldData).changedKeys().hasOnly(['status', 'supervisorApproval', 'statusHistory', 'updatedAt']) &&
+             oldData.status == 'resolved' &&
+             newData.status == 'closed' &&
+             newData.supervisorApproval.status == 'approved';
+    }
+    
     // ============================================
     // CATCH-ALL DENY RULE
     // ============================================

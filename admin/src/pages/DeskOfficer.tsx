@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Badge, Button, Modal, Form, Alert, Spinner } from 'react-bootstrap';
-import { Clock, FileText, CheckCircle, XCircle, Warning, User } from 'phosphor-react';
+import { Clock, FileText, CheckCircle, XCircle, Warning, User, Download, Eye } from 'phosphor-react';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, Timestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { BlotterService } from '../services/blotterService';
+import { IRFService } from '../services/irfService';
+import { IRFPreviewEditor } from '../components/irf';
+import type { IRFTemplate, IRFData } from '../components/irf';
 
 interface Report {
   id: string;
@@ -14,6 +17,7 @@ interface Report {
   description: string;
   status: 'pending' | 'validated' | 'rejected';
   timestamp: any;
+  updatedAt: any; // Required by CCRSReport interface
   location?: {
     latitude: number;
     longitude: number;
@@ -22,14 +26,20 @@ interface Report {
       city?: string;
       region?: string;
     };
+    accuracy?: number;
   };
   media_urls?: string[];
   isEmergency?: boolean;
   triageLevel?: 'critical' | 'high' | 'medium' | 'low';
   triageNotes?: string;
   blotterNumber?: string;
+  
+  // Additional fields to match EnhancedCCRSReport
+  statusHistory: any[];
+  irfGenerated: boolean;
+  requiresSupervisorApproval: boolean;
+  reassignmentCount: number;
 }
-
 type TriageLevel = 'critical' | 'high' | 'medium' | 'low';
 
 const DeskOfficerPortal: React.FC = () => {
@@ -45,6 +55,25 @@ const DeskOfficerPortal: React.FC = () => {
   const [processingBlotter, setProcessingBlotter] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // IRF Generation State
+  const [showIRFModal, setShowIRFModal] = useState(false);
+  const [irfTemplate, setIrfTemplate] = useState<IRFTemplate | null>(null);
+  const [generatingIRF, setGeneratingIRF] = useState(false);
+  const [reportForIRF, setReportForIRF] = useState<Report | null>(null);
+  
+  // Persistent IRF form state - survives modal close/reopen
+  const [irfFormState, setIrfFormState] = useState<{
+    reportId: string | null;
+    editedFields: Record<string, any>;
+    isEditing: boolean;
+    activeTab: string;
+  }>({
+    reportId: null,
+    editedFields: {},
+    isEditing: false,
+    activeTab: 'preview'
+  });
 
   // Load pending reports
   useEffect(() => {
@@ -69,6 +98,20 @@ const DeskOfficerPortal: React.FC = () => {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Load IRF template on mount
+  useEffect(() => {
+    const loadIRFTemplate = async () => {
+      try {
+        const template = await IRFService.getActiveTemplate();
+        setIrfTemplate(template);
+      } catch (error) {
+        console.error('Error loading IRF template:', error);
+      }
+    };
+
+    loadIRFTemplate();
   }, []);
 
   const handleValidateReport = (report: Report, action: 'approve' | 'reject') => {
@@ -141,6 +184,103 @@ const DeskOfficerPortal: React.FC = () => {
       setError(error instanceof Error ? error.message : 'Failed to process validation');
     } finally {
       setProcessingBlotter(false);
+    }
+  };
+
+  // Handle IRF generation
+  const handleGenerateIRF = (report: Report) => {
+    if (!irfTemplate) {
+      setError('IRF template not loaded. Please refresh the page.');
+      return;
+    }
+    
+    // If opening IRF for a different report, clear previous state
+    if (irfFormState.reportId !== report.id) {
+      setIrfFormState({
+        reportId: report.id,
+        editedFields: {},
+        isEditing: false,
+        activeTab: 'preview'
+      });
+    }
+    
+    setReportForIRF(report);
+    setShowIRFModal(true);
+  };
+  
+  // Handle IRF form state changes (called from IRFPreviewEditor) - memoized to prevent infinite loops
+  const handleIRFFormStateChange = useCallback((newState: Partial<typeof irfFormState>) => {
+    setIrfFormState(prev => ({ ...prev, ...newState }));
+  }, []);
+  
+  // Handle modal close with confirmation if unsaved changes
+  const handleCloseIRFModal = () => {
+    const hasUnsavedChanges = Object.keys(irfFormState.editedFields).length > 0;
+    
+    if (hasUnsavedChanges) {
+      const confirmClose = window.confirm(
+        'You have unsaved changes in the IRF form. Are you sure you want to close? '
+        + 'Your changes will be preserved if you reopen the IRF for this report.'
+      );
+      
+      if (!confirmClose) {
+        return; // Don't close if user cancels
+      }
+    }
+    
+    setShowIRFModal(false);
+    // Note: We keep irfFormState intact so it persists when modal reopens
+  };
+
+  // Handle IRF generation completion
+  const handleIRFGenerated = async (irfData: IRFData, pdfBlob: Blob) => {
+    if (!reportForIRF || !user) return;
+
+    try {
+      setGeneratingIRF(true);
+      setError(null);
+
+      // Complete the IRF generation workflow
+      const result = await IRFService.completeIRFGeneration(
+        reportForIRF,
+        irfData,
+        pdfBlob
+      );
+
+      if (result.success) {
+        setSuccess(
+          `IRF generated successfully! ` +
+          `Entry Number: ${irfData.irfEntryNumber} | ` +
+          `PDF saved to Firebase Storage`
+        );
+        
+        // Clear form state since IRF was successfully generated
+        setIrfFormState({
+          reportId: null,
+          editedFields: {},
+          isEditing: false,
+          activeTab: 'preview'
+        });
+        
+        setShowIRFModal(false);
+        setReportForIRF(null);
+      }
+
+    } catch (error) {
+      console.error('Error completing IRF generation:', error);
+      setError(error instanceof Error ? error.message : 'Failed to complete IRF generation');
+    } finally {
+      setGeneratingIRF(false);
+    }
+  };
+
+  // Check if report has IRF already generated
+  const hasIRFGenerated = async (reportId: string): Promise<boolean> => {
+    try {
+      return await IRFService.hasIRFGenerated(reportId);
+    } catch (error) {
+      console.error('Error checking IRF status:', error);
+      return false;
     }
   };
 
@@ -257,24 +397,41 @@ const DeskOfficerPortal: React.FC = () => {
                       )}
                     </Card.Body>
                     
-                    <Card.Footer className="d-flex gap-2">
-                      <Button
-                        variant="success"
-                        size="sm"
-                        onClick={() => handleValidateReport(report, 'approve')}
-                        className="flex-fill"
-                      >
-                        <CheckCircle size={16} className="me-1" />
-                        Approve & Assign Blotter
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => handleValidateReport(report, 'reject')}
-                      >
-                        <XCircle size={16} className="me-1" />
-                        Reject
-                      </Button>
+                    <Card.Footer>
+                      {/* Primary Actions */}
+                      <div className="d-flex gap-2 mb-2">
+                        <Button
+                          variant="success"
+                          size="sm"
+                          onClick={() => handleValidateReport(report, 'approve')}
+                          className="flex-fill"
+                        >
+                          <CheckCircle size={16} className="me-1" />
+                          Approve & Assign Blotter
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleValidateReport(report, 'reject')}
+                        >
+                          <XCircle size={16} className="me-1" />
+                          Reject
+                        </Button>
+                      </div>
+                      
+                      {/* IRF Generation Action */}
+                      <div className="d-flex gap-2">
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => handleGenerateIRF(report)}
+                          disabled={!irfTemplate || generatingIRF}
+                          className="flex-fill"
+                        >
+                          <FileText size={16} className="me-1" />
+                          {generatingIRF ? 'Generating...' : 'Generate IRF'}
+                        </Button>
+                      </div>
                     </Card.Footer>
                   </Card>
                 </Col>
@@ -388,6 +545,36 @@ const DeskOfficerPortal: React.FC = () => {
             )}
           </Button>
         </Modal.Footer>
+      </Modal>
+
+      {/* IRF Preview & Edit Modal */}
+      <Modal show={showIRFModal} onHide={handleCloseIRFModal} size="xl">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Generate Incident Record Form (IRF)
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {reportForIRF && irfTemplate ? (
+            <IRFPreviewEditor
+              report={reportForIRF as any}
+              template={irfTemplate}
+              generatedBy={user?.uid || 'unknown'}
+              onIRFGenerated={handleIRFGenerated}
+              onCancel={handleCloseIRFModal}
+              // Pass persistent form state
+              initialEditedFields={irfFormState.reportId === reportForIRF.id ? irfFormState.editedFields : {}}
+              initialIsEditing={irfFormState.reportId === reportForIRF.id ? irfFormState.isEditing : false}
+              initialActiveTab={irfFormState.reportId === reportForIRF.id ? irfFormState.activeTab : 'preview'}
+              onFormStateChange={handleIRFFormStateChange}
+            />
+          ) : (
+            <div className="text-center py-4">
+              <Spinner animation="border" />
+              <p className="mt-2">Loading IRF editor...</p>
+            </div>
+          )}
+        </Modal.Body>
       </Modal>
     </Container>
   );

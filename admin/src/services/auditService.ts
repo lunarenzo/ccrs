@@ -26,10 +26,15 @@ class AuditService {
   // Log admin actions
   async logAction(auditData: Omit<AuditLog, 'id' | 'timestamp'>): Promise<void> {
     try {
-      await addDoc(collection(db, 'audit_logs'), {
-        ...auditData,
-        timestamp: Timestamp.now()
-      });
+      // Filter out undefined values to prevent Firestore errors
+      const cleanedData = Object.fromEntries(
+        Object.entries({
+          ...auditData,
+          timestamp: Timestamp.now()
+        }).filter(([_, value]) => value !== undefined)
+      );
+      
+      await addDoc(collection(db, 'audit_logs'), cleanedData);
     } catch (error) {
       console.error('Failed to log audit action:', error);
       // Don't throw error to avoid breaking the main operation
